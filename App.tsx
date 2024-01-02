@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Provider } from "react-redux";
 import { store } from "./src/redux/store";
 import Header from "./src/components/Header";
+import Movies from "./src/components/Movies";
 // import { store } from "@/redux/store";
 
 export default function App() {
@@ -11,7 +12,8 @@ export default function App() {
     <Provider store={store}>
       <View style={styles.container}>
         <Header />
-        <Text>Hey let's start</Text>
+        <Movies />
+        {/* <Text>Hey let's start</Text> */}
         <StatusBar style="auto" />
       </View>
     </Provider>

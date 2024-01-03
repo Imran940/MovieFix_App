@@ -55,6 +55,7 @@ const Header = () => {
         });
       }
 
+      console.log(response);
       dispatch(
         setMovies({
           filters: newGenreFilterSelected.length

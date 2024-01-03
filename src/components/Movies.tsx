@@ -1,5 +1,12 @@
-import { View, Text, StyleSheet, Image, FlatList } from "react-native";
-import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  FlatList,
+  ScrollView,
+} from "react-native";
+import React, { useEffect, useRef, useState } from "react";
 import { getListOfMoviesWithFilters, searchMoviesByQuery } from "../functions";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -11,7 +18,7 @@ import {
 } from "../types";
 import { BASE_IMAGE_URL } from "../constants";
 import MovieAction from "../redux/actions";
-import { compressMoviesArrayObject } from "../functions/helper";
+import { compressMoviesArrayObject, debounce } from "../functions/helper";
 
 const { setMovies: setMoviesForStore, GET_MOVIES_STARTED } = MovieAction;
 const Movies = () => {
@@ -23,39 +30,58 @@ const Movies = () => {
     filters,
     loading,
     pagination,
+    cachedFilteredMovies,
   } = useSelector((state: GlobalStoreTypes) => state.movies);
   const [movies, setMovies] = useState<MovieTypes[]>([]);
   const dispatch = useDispatch();
+  const flatListRef = useRef<FlatList<any>>(null);
 
+  console.log({ movies: movies.length });
   const formatAndUpdateStates = ({
     data,
     currentYear,
-    pagination,
+    pagination = {
+      page: 1,
+      totalPages: 1,
+    },
   }: {
     data: OriginalMoviewDataTypes[];
     currentYear?: number;
     pagination?: PaginationForMoviesTypes;
   }) => {
+    // this genres check if for adding genre tag on the movie tag
+
+    console.log({ pagination, cachedFilteredMovies });
     if (genres?.length) {
       let formattedMoviesData = compressMoviesArrayObject({
-        values: data,
+        values: [...data],
         genres,
       });
-      setMovies(formattedMoviesData);
-      dispatch(
-        setMoviesForStore({
-          ...(currentYear && { year: currentYear }),
-          data: formattedMoviesData,
-          ...(pagination && { pagination }),
-        })
-      );
+
+      if (pagination?.page >= 2 && cachedFilteredMovies?.genre?.[1]) {
+        formattedMoviesData = [
+          ...cachedFilteredMovies?.genre?.[pagination.page - 1],
+          ...formattedMoviesData,
+        ];
+      }
+      console.log(formattedMoviesData.length);
+      if (formattedMoviesData.length) {
+        dispatch(
+          setMoviesForStore({
+            ...(currentYear && { year: currentYear }),
+            data: [...formattedMoviesData],
+            ...(pagination && { pagination }),
+            // filters,
+          })
+        );
+      }
     }
   };
 
   useEffect(() => {
     if (activeMovies.length) {
       setMovies(activeMovies);
-    } else if (!movies?.length) {
+    } else if (!movies?.length && genres.length) {
       (async () => {
         try {
           const response = await getListOfMoviesWithFilters({
@@ -70,6 +96,7 @@ const Movies = () => {
   }, [genres, activeMovies]);
 
   useEffect(() => {
+    console.log("called filter's one");
     if (filters?.searchQuery) {
       (async () => {
         try {
@@ -77,9 +104,11 @@ const Movies = () => {
           dispatch({
             type: GET_MOVIES_STARTED,
           });
-          const response = await searchMoviesByQuery(filters.searchQuery!);
+          const response = await searchMoviesByQuery({
+            search: filters.searchQuery!,
+          });
           formatAndUpdateStates({
-            data: response?.results,
+            data: [...response?.results],
             pagination: {
               page: response.page,
               totalPages: response.total_pages,
@@ -97,25 +126,33 @@ const Movies = () => {
   const handleReachEnd = async () => {
     try {
       //To show loading..
-      let newPage = pagination?.page ? pagination.page + 1 : 0;
+      let newPage = pagination?.page ? pagination.page + 1 : 1;
+      console.log({ newPage });
       const { genreSelected, searchQuery } = filters || {};
+
       dispatch({
         type: GET_MOVIES_STARTED,
       });
 
-      if (!newPage) {
+      if (!searchQuery && !genreSelected) {
         // do year++
       } else if (filters && pagination && newPage < pagination.totalPages) {
         if (genreSelected) {
           const response = await getListOfMoviesWithFilters({
             with_genres: genreSelected,
+            page: newPage,
           });
+          // flatListRef?.current?.scrollToIndex({ animated: true, index: 0 });
+
           formatAndUpdateStates({
             data: response.results,
             pagination: { page: newPage, totalPages: response.total_pages },
           });
         } else if (searchQuery) {
-          const response = await searchMoviesByQuery(searchQuery);
+          const response = await searchMoviesByQuery({
+            search: searchQuery,
+            page: newPage,
+          });
           formatAndUpdateStates({
             data: response?.results,
             pagination: {
@@ -131,7 +168,7 @@ const Movies = () => {
   };
 
   const renderItem = ({ item }: { item: MovieTypes }) => (
-    <View style={styles.movieBox} key={item.id}>
+    <View style={styles.movieBox} key={item.id + Math.random()}>
       <Image style={styles.movieBoxImage} source={{ uri: item.imageUrl }} />
       <Text style={styles.movieBoxTitle}>{item.title}</Text>
       {item.genres?.length ? (
@@ -158,13 +195,24 @@ const Movies = () => {
           ? "Search Filter Applied"
           : year}
       </Text>
+
       <FlatList
+        //ref={flatListRef}
         data={movies}
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
-        onEndReached={handleReachEnd}
+        onEndReached={() => {
+          if (movies.length == 40) {
+            // making space for the next upcoming movies
+            setMovies((prevMovies) => prevMovies.slice(20, 40));
+            setTimeout(handleReachEnd, 1000);
+          } else {
+            handleReachEnd();
+          }
+        }}
         onStartReached={() => console.log("start reached..")}
+        // disableScrollViewPanResponder
       />
     </View>
   );

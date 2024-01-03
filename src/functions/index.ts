@@ -53,15 +53,19 @@ export const getListOfMoviesWithFilters = async ({
   }
 };
 
-export const searchMoviesByQuery = async (
-  search: string
-): Promise<GetMoviesResponseTypes> => {
+export const searchMoviesByQuery = async ({
+  search,
+  page = 1,
+}: {
+  search: string;
+  page?: number;
+}): Promise<GetMoviesResponseTypes> => {
   try {
     const response = await request
       .get(`${BASE_URL}/search/movie`)
       .query({ query: search, api_key });
 
-    return response.body.results;
+    return response.body;
   } catch (error) {
     throw error;
   }

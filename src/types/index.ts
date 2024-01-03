@@ -45,6 +45,17 @@ export interface MovieInitialStateTypes {
   activeYear: number;
   loading?: boolean;
   pagination?: PaginationForMoviesTypes;
+  cachedFilteredMovies?: {
+    // genre?: {
+    //   [page: number]: MovieTypes[];
+    // };
+    // search?: {
+    //   [page: number]: MovieTypes[];
+    // };
+    [key in "genre" | "search"]?: {
+      [page: number]: MovieTypes[];
+    };
+  };
 }
 export type filterTypes = {
   genreSelected?: string;

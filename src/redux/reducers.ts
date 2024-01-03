@@ -17,8 +17,12 @@ const {
 const initialState: MovieInitialStateTypes = {
   genres: [],
   activeMovies: [],
-  cachedYearsMovies: [],
   activeYear: 2012,
+  cachedFilteredMovies: {
+    genre: {},
+    search: {},
+  },
+  cachedYearsMovies: {},
 };
 export const MovieReducer = (
   state = initialState,
@@ -38,26 +42,60 @@ export const MovieReducer = (
       };
     }
     case GET_MOVIES_DONE: {
+      console.log(state.cachedFilteredMovies);
       return {
         ...state,
-        activeMovies: action.payload.data,
-        ...(action.payload.filters && { filters: action.payload.filters }),
+
+        ...(action.payload.pagination && {
+          pagination: action.payload.pagination,
+        }),
+
+        ...(action.payload.filters && {
+          filters: action.payload.filters,
+        }),
+
+        ...(state.filters?.genreSelected ||
+        action.payload.filters?.genreSelected
+          ? {
+              cachedFilteredMovies: {
+                ...state.cachedFilteredMovies,
+                genre: {
+                  ...state.cachedFilteredMovies?.genre,
+                  [action.payload.pagination?.page || 1]:
+                    action.payload.data.length == 20
+                      ? [...action.payload.data]
+                      : action.payload.data.slice(20, 40),
+                },
+              },
+            }
+          : state.filters?.genreSelected && {
+              cachedFilteredMovies: {
+                ...state.cachedFilteredMovies,
+                search: {
+                  ...state.cachedFilteredMovies?.search,
+                  [action.payload.pagination?.page || 1]: [
+                    ...action.payload.data,
+                  ],
+                },
+              },
+            }),
+
         ...(action.payload.year && {
           cachedYearsMovies: {
             ...state.cachedYearsMovies,
             [action.payload.year]: action.payload.data,
           },
         }),
+
+        activeMovies: [...action.payload.data],
+        // activeMovies: [...result],
         loading: false,
       };
     }
     case APPLY_FILTERS_DONE: {
       return {
         ...state,
-        filters: {
-          ...state.filters,
-          ...action.payload,
-        },
+        filters: action.payload,
       };
     }
 

@@ -42,7 +42,6 @@ export const MovieReducer = (
       };
     }
     case GET_MOVIES_DONE: {
-      console.log(state.cachedFilteredMovies);
       return {
         ...state,
 
@@ -54,8 +53,9 @@ export const MovieReducer = (
           filters: action.payload.filters,
         }),
 
-        ...(state.filters?.genreSelected ||
-        action.payload.filters?.genreSelected
+        ...((state.filters?.genreSelected ||
+          action.payload.filters?.genreSelected) &&
+        action.payload.pagination
           ? {
               cachedFilteredMovies: {
                 ...state.cachedFilteredMovies,
@@ -68,14 +68,16 @@ export const MovieReducer = (
                 },
               },
             }
-          : state.filters?.genreSelected && {
+          : state.filters?.searchQuery &&
+            action.payload.pagination && {
               cachedFilteredMovies: {
                 ...state.cachedFilteredMovies,
                 search: {
                   ...state.cachedFilteredMovies?.search,
-                  [action.payload.pagination?.page || 1]: [
-                    ...action.payload.data,
-                  ],
+                  [action.payload.pagination?.page || 1]:
+                    action.payload.data.length == 20
+                      ? [...action.payload.data]
+                      : action.payload.data.slice(20, 40),
                 },
               },
             }),
@@ -83,12 +85,15 @@ export const MovieReducer = (
         ...(action.payload.year && {
           cachedYearsMovies: {
             ...state.cachedYearsMovies,
-            [action.payload.year]: action.payload.data,
+            [action.payload.year]:
+              action.payload.data.length == 20
+                ? [...action.payload.data]
+                : action.payload.data.slice(20, 40),
           },
         }),
 
         activeMovies: [...action.payload.data],
-        // activeMovies: [...result],
+
         loading: false,
       };
     }

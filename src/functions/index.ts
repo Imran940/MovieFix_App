@@ -2,7 +2,6 @@ import {
   GenreTypes,
   GetMovieFilterTypes,
   GetMoviesResponseTypes,
-  OriginalMoviewDataTypes,
 } from "../types";
 import { BASE_URL, api_key } from "../constants";
 import request from "superagent";
@@ -19,7 +18,7 @@ export const getListOfGenres = async (): Promise<GenreTypes[]> => {
 };
 
 export const getListOfMoviesWithFilters = async ({
-  primary_released_year = 2012,
+  primary_release_year = 2012,
   vote_gte = 100,
   with_genres,
   with_keywords,
@@ -38,7 +37,7 @@ export const getListOfMoviesWithFilters = async ({
     if (!with_genres && !with_keywords) {
       query = {
         ...query,
-        primary_released_year,
+        primary_release_year,
         vote_gte,
       };
     }
@@ -63,7 +62,7 @@ export const searchMoviesByQuery = async ({
   try {
     const response = await request
       .get(`${BASE_URL}/search/movie`)
-      .query({ query: search, api_key });
+      .query({ query: search, api_key, page });
 
     return response.body;
   } catch (error) {

@@ -30,7 +30,7 @@ export interface OriginalMoviewDataTypes {
 export interface GetMovieFilterTypes {
   with_genres: string;
   with_keywords: string;
-  primary_released_year: number;
+  primary_release_year: number;
   vote_gte: number;
   page?: number;
 }
@@ -46,12 +46,6 @@ export interface MovieInitialStateTypes {
   loading?: boolean;
   pagination?: PaginationForMoviesTypes;
   cachedFilteredMovies?: {
-    // genre?: {
-    //   [page: number]: MovieTypes[];
-    // };
-    // search?: {
-    //   [page: number]: MovieTypes[];
-    // };
     [key in "genre" | "search"]?: {
       [page: number]: MovieTypes[];
     };
@@ -68,7 +62,7 @@ export interface setMovieParameterType {
   };
   year?: number;
   data: MovieTypes[];
-  pagination?: PaginationForMoviesTypes;
+  pagination?: PaginationForMoviesTypes | null;
 }
 
 export interface setGenresAction {

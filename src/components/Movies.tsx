@@ -4,23 +4,23 @@ import {
   StyleSheet,
   Image,
   FlatList,
-  ScrollView,
+
 } from "react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { getListOfMoviesWithFilters, searchMoviesByQuery } from "../functions";
 import { useDispatch, useSelector } from "react-redux";
 import {
   GlobalStoreTypes,
-  MovieInitialStateTypes,
   MovieTypes,
   OriginalMoviewDataTypes,
   PaginationForMoviesTypes,
 } from "../types";
-import { BASE_IMAGE_URL } from "../constants";
 import MovieAction from "../redux/actions";
-import { compressMoviesArrayObject, debounce } from "../functions/helper";
+import { compressMoviesArrayObject } from "../functions/helper";
 
 const { setMovies: setMoviesForStore, GET_MOVIES_STARTED } = MovieAction;
+let currentPage: number;
+
 const Movies = () => {
   const [year, setYear] = useState(2012);
   const {
@@ -35,15 +35,12 @@ const Movies = () => {
   const [movies, setMovies] = useState<MovieTypes[]>([]);
   const dispatch = useDispatch();
   const flatListRef = useRef<FlatList<any>>(null);
+  const { genreSelected, searchQuery } = filters || {};
 
-  console.log({ movies: movies.length });
   const formatAndUpdateStates = ({
     data,
     currentYear,
-    pagination = {
-      page: 1,
-      totalPages: 1,
-    },
+    pagination,
   }: {
     data: OriginalMoviewDataTypes[];
     currentYear?: number;
@@ -51,27 +48,44 @@ const Movies = () => {
   }) => {
     // this genres check if for adding genre tag on the movie tag
 
-    console.log({ pagination, cachedFilteredMovies });
     if (genres?.length) {
       let formattedMoviesData = compressMoviesArrayObject({
         values: [...data],
         genres,
       });
 
-      if (pagination?.page >= 2 && cachedFilteredMovies?.genre?.[1]) {
+      let cachedData = !filters
+        ? null
+        : filters?.searchQuery
+        ? cachedFilteredMovies?.search
+        : cachedFilteredMovies?.genre;
+      if (
+        pagination &&
+        pagination?.page >= 2 &&
+        cachedData &&
+        cachedData?.[1]
+      ) {
         formattedMoviesData = [
-          ...cachedFilteredMovies?.genre?.[pagination.page - 1],
+          ...cachedData?.[pagination.page - 1],
+          ...formattedMoviesData,
+        ];
+      } else if (
+        currentYear &&
+        cachedYearsMovies &&
+        Object.keys(cachedYearsMovies).length
+      ) {
+        formattedMoviesData = [
+          ...cachedYearsMovies?.[currentYear - 1],
           ...formattedMoviesData,
         ];
       }
-      console.log(formattedMoviesData.length);
+
       if (formattedMoviesData.length) {
         dispatch(
           setMoviesForStore({
             ...(currentYear && { year: currentYear }),
             data: [...formattedMoviesData],
             ...(pagination && { pagination }),
-            // filters,
           })
         );
       }
@@ -85,7 +99,7 @@ const Movies = () => {
       (async () => {
         try {
           const response = await getListOfMoviesWithFilters({
-            primary_released_year: year,
+            primary_release_year: year,
           });
           formatAndUpdateStates({ data: response.results, currentYear: year });
         } catch (err) {
@@ -96,7 +110,6 @@ const Movies = () => {
   }, [genres, activeMovies]);
 
   useEffect(() => {
-    console.log("called filter's one");
     if (filters?.searchQuery) {
       (async () => {
         try {
@@ -117,53 +130,155 @@ const Movies = () => {
         } catch (error) {}
       })();
     } else if (filters?.searchQuery == "") {
-      setMovies(
-        cachedYearsMovies?.[year].length ? [...cachedYearsMovies[year]] : []
+      dispatch(
+        setMoviesForStore({
+          data: cachedYearsMovies?.[year].length
+            ? [...cachedYearsMovies[year]]
+            : [],
+        })
       );
     }
   }, [filters]);
 
-  const handleReachEnd = async () => {
+  const checkAndReturnDataFromCacheMemory = ({
+    data,
+    key,
+  }: {
+    data:
+      | {
+          [key: number]: MovieTypes[];
+        }
+      | undefined;
+    key: number;
+  }): MovieTypes[] | null =>
+    !data ? null : data[key]?.length ? [...data[key]] : null;
+
+  const handleReachEnd = async (data?: MovieTypes[] | null) => {
     try {
       //To show loading..
-      let newPage = pagination?.page ? pagination.page + 1 : 1;
-      console.log({ newPage });
-      const { genreSelected, searchQuery } = filters || {};
-
       dispatch({
         type: GET_MOVIES_STARTED,
       });
 
-      if (!searchQuery && !genreSelected) {
-        // do year++
-      } else if (filters && pagination && newPage < pagination.totalPages) {
-        if (genreSelected) {
-          const response = await getListOfMoviesWithFilters({
-            with_genres: genreSelected,
-            page: newPage,
-          });
-          // flatListRef?.current?.scrollToIndex({ animated: true, index: 0 });
+      if (searchQuery || genreSelected) {
+        if (pagination && pagination?.page >= currentPage + 2) currentPage += 2;
+
+        let cachedData = checkAndReturnDataFromCacheMemory({
+          data: genreSelected
+            ? cachedFilteredMovies?.genre
+            : cachedFilteredMovies?.search,
+          key: currentPage,
+        });
+        if (cachedData && data?.length) {
+          // Here I'm using cached data to avoid unnecessory api calls
+          let newData = [...data, ...cachedData];
+          dispatch(
+            setMoviesForStore({
+              data: newData,
+            })
+          );
+          return;
+        }
+
+        let newPage = pagination?.page ? pagination.page + 1 : 1;
+        currentPage = newPage;
+        let response;
+
+        if (pagination && newPage <= pagination.totalPages) {
+          if (genreSelected) {
+            response = await getListOfMoviesWithFilters({
+              with_genres: genreSelected,
+              page: newPage,
+            });
+          } else if (searchQuery) {
+            response = await searchMoviesByQuery({
+              search: searchQuery,
+              page: newPage,
+            });
+          }
 
           formatAndUpdateStates({
-            data: response.results,
-            pagination: { page: newPage, totalPages: response.total_pages },
-          });
-        } else if (searchQuery) {
-          const response = await searchMoviesByQuery({
-            search: searchQuery,
-            page: newPage,
-          });
-          formatAndUpdateStates({
-            data: response?.results,
-            pagination: {
-              page: newPage,
-              totalPages: response.total_pages,
-            },
+            data: response?.results!,
+            pagination: { page: newPage, totalPages: response?.total_pages! },
           });
         }
+      } else {
+        let newYear = year + 1;
+        let cachedData = checkAndReturnDataFromCacheMemory({
+          data: cachedYearsMovies,
+          key: year + 2,
+        });
+
+        if (cachedData && data?.length) {
+          let newData = [...data, ...cachedData];
+          setYear(year + 2);
+          dispatch(
+            setMoviesForStore({
+              data: newData,
+            })
+          );
+          return;
+        }
+        const response = await getListOfMoviesWithFilters({
+          primary_release_year: newYear,
+        });
+        setYear(newYear);
+        formatAndUpdateStates({ data: response.results, currentYear: newYear });
       }
     } catch (error) {
       console.log(error);
+    }
+  };
+
+  const handleStartEnd = async (data: MovieTypes[]) => {
+    try {
+      if (
+        (genreSelected || searchQuery) &&
+        pagination &&
+        pagination?.page >= 3 &&
+        currentPage &&
+        currentPage >= 1
+      ) {
+        //To show loading..
+        dispatch({
+          type: GET_MOVIES_STARTED,
+        });
+
+        currentPage -= 2;
+        let cachedData = checkAndReturnDataFromCacheMemory({
+          data: genreSelected
+            ? cachedFilteredMovies?.genre
+            : cachedFilteredMovies?.search,
+          key: currentPage,
+        });
+
+        if (cachedData) {
+          dispatch(
+            setMoviesForStore({
+              data: [...cachedData, ...data],
+            })
+          );
+        }
+      } else if (
+        year > 2012 &&
+        cachedYearsMovies &&
+        Object.keys(cachedYearsMovies).length
+      ) {
+        let cachedData = checkAndReturnDataFromCacheMemory({
+          data: cachedYearsMovies,
+          key: year - 2,
+        });
+        if (cachedData) {
+          setYear(year - 2);
+          dispatch(
+            setMoviesForStore({
+              data: [...cachedData, ...data],
+            })
+          );
+        }
+      }
+    } catch (err) {
+      console.log(err);
     }
   };
 
@@ -189,15 +304,15 @@ const Movies = () => {
       <Text style={loading ? styles.loadingText : styles.yearText}>
         {loading
           ? "Loading.."
-          : filters?.genreSelected
+          : genreSelected
           ? "Genres Filter Applied"
-          : filters?.searchQuery
+          : searchQuery
           ? "Search Filter Applied"
           : year}
       </Text>
 
       <FlatList
-        //ref={flatListRef}
+        ref={flatListRef}
         data={movies}
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
@@ -205,14 +320,22 @@ const Movies = () => {
         onEndReached={() => {
           if (movies.length == 40) {
             // making space for the next upcoming movies
-            setMovies((prevMovies) => prevMovies.slice(20, 40));
-            setTimeout(handleReachEnd, 1000);
+            let data = [...movies.slice(20, 40)];
+            setMovies(data);
+            setTimeout(() => handleReachEnd(data), 1000);
           } else {
             handleReachEnd();
           }
         }}
-        onStartReached={() => console.log("start reached..")}
-        // disableScrollViewPanResponder
+        onStartReached={() => {
+          if (movies.length == 40) {
+            // removing the first 20 movies for the space
+            let data = [...movies.slice(0, 20)];
+            handleStartEnd(data);
+          }
+        }}
+        // olny re-render the new item which got added to the list
+        extraData={movies}
       />
     </View>
   );

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TextInput } from "react-native";
 import React, { useEffect, useState } from "react";
-import { GenreTypes, GlobalStoreTypes, MovieInitialStateTypes } from "../types";
+import { GenreTypes, GlobalStoreTypes } from "../types";
 import { getListOfGenres, getListOfMoviesWithFilters } from "../functions";
 import { useDispatch, useSelector } from "react-redux";
 import MovieAction from "../redux/actions";
@@ -55,7 +55,6 @@ const Header = () => {
         });
       }
 
-      console.log(response);
       dispatch(
         setMovies({
           filters: newGenreFilterSelected.length
@@ -68,10 +67,12 @@ const Header = () => {
             : cachedYearsMovies?.[activeYear].length
             ? [...cachedYearsMovies[activeYear]]
             : [],
-          pagination: {
-            page: response?.page!,
-            totalPages: response?.total_pages!,
-          },
+          pagination: newGenreFilterSelected?.length
+            ? {
+                page: response?.page!,
+                totalPages: response?.total_pages!,
+              }
+            : null,
         })
       );
       setGenreFilterSelected(newGenreFilterSelected);
